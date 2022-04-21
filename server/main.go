@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
@@ -13,23 +15,6 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-}
-
-func main() {
-	r := mux.NewRouter()
-
-	hub := newHub()
-	go hub.run()
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		wsEndpoint(hub, w, r)
-	})
-
-	s := &http.Server{
-		Addr:    ":8080",
-		Handler: r,
-	}
-
-	s.ListenAndServe()
 }
 
 func newHub() *Hub {
@@ -41,20 +26,77 @@ func newHub() *Hub {
 	}
 }
 
+var Hubs = make(map[string]*Hub)
+
+type Hub struct {
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
+	unregister chan *Client
+}
+
+type Client struct {
+	hub  *Hub
+	conn *websocket.Conn
+	send chan []byte
+	User
+}
+
+type User struct {
+	id   string
+	name string
+}
+
+func main() {
+	r := mux.NewRouter()
+
+	r.HandleFunc("/{room}", wsEndpoint)
+
+	s := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
+
+	log.Fatal(s.ListenAndServe())
+}
+
+func GenUserId() string {
+	uuid := uuid.NewString()
+	return uuid
+}
+
 func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			clientId := client.id
+			for client := range h.clients {
+				msg := []byte("some one join room (ID: " + clientId + ")")
+				client.send <- msg
+			}
+
 			h.clients[client] = true
+
 		case client := <-h.unregister:
+			clientId := client.id
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 			}
-		case message := <-h.broadcast:
 			for client := range h.clients {
+				msg := []byte("some one leave room (ID:" + clientId + ")")
+				client.send <- msg
+			}
+		case userMessage := <-h.broadcast:
+			var data map[string][]byte
+			json.Unmarshal(userMessage, &data)
+
+			for client := range h.clients {
+				if client.id == string(data["id"]) {
+					continue
+				}
 				select {
-				case client.send <- message:
+				case client.send <- data["message"]:
 				default:
 					close(client.send)
 					delete(h.clients, client)
@@ -64,41 +106,37 @@ func (h *Hub) run() {
 	}
 }
 
-func wsEndpoint(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func wsEndpoint(w http.ResponseWriter, r *http.Request) {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	ws, err := upgrader.Upgrade(w, r, nil)
+	vars := mux.Vars(r)
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
+	var hub *Hub
+	if _, ok := Hubs[vars["room"]]; ok {
+		hub = Hubs[vars["room"]]
+	} else {
+		hub = newHub()
+		Hubs[vars["room"]] = hub
+		go hub.run()
+	}
+	user := User{GenUserId(), "test"}
+	client := &Client{hub, ws, make(chan []byte), user}
 	client.hub.register <- client
 
-	go client.readPump()
 	go client.writePump()
-}
-
-type Hub struct {
-	clients map[*Client]bool
-	// Inbound messages from the clients.
-	broadcast chan []byte
-	// Register requests from the clients.
-	register chan *Client
-	// Unregister requests from clients.
-	unregister chan *Client
-}
-
-type Client struct {
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
+	go client.readPump()
+	client.send <- []byte("Welcome to the room " + vars["room"])
 }
 
 const (
-	writeWait = 10 * time.Second
-	pongWait = 1 * time.Second
-	pingPeriod = (pongWait * 9) / 10
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
 	maxMessageSize = 512
 )
 
@@ -124,7 +162,16 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.hub.broadcast <- message
+		data := map[string][]byte{
+			"message": message,
+			"id":      []byte(c.id),
+		}
+		userMessage, err := json.Marshal(data)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		c.hub.broadcast <- userMessage
 	}
 }
 
@@ -139,7 +186,6 @@ func (c *Client) writePump() {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -150,7 +196,6 @@ func (c *Client) writePump() {
 			}
 			w.Write(message)
 
-			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
 				w.Write(newline)
