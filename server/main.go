@@ -5,12 +5,30 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
+
+func maxOpenFiles() {
+	var rLimit syscall.Rlimit
+
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		log.Println("Error Getting Rlimit ", err)
+	}
+
+	if rLimit.Cur < rLimit.Max {
+		rLimit.Cur = rLimit.Max
+		err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+		if err != nil {
+			log.Println("Error Setting Rlimit ", err)
+		}
+	}
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -48,6 +66,7 @@ type User struct {
 }
 
 func main() {
+	maxOpenFiles()
 	r := mux.NewRouter()
 
 	r.HandleFunc("/{room}", wsEndpoint)
@@ -83,10 +102,7 @@ func (h *Hub) run() {
 				delete(h.clients, client)
 				close(client.send)
 			}
-			for client := range h.clients {
-				msg := []byte("some one leave room (ID:" + clientId + ")")
-				client.send <- msg
-			}
+			h.broadcast <- []byte("some one left room (ID: " + clientId + ")")
 		case userMessage := <-h.broadcast:
 			var data map[string][]byte
 			json.Unmarshal(userMessage, &data)
