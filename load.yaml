@@ -1,0 +1,16 @@
+config:
+    target: "ws://localhost:8080/ws"
+    phases:
+      - duration: 10
+        arrivalRate: 500
+        rampTo: 1000
+        name: "Warming up"
+      - duration: 10
+        arrivalRate: 10000
+        name: "Max load"
+scenarios:
+  - engine: "ws"
+    flow:
+      - send: "hello"
+      - think: 1
+      - send: "how are you?"
