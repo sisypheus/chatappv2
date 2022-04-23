@@ -41,6 +41,7 @@ const (
 type message struct {
 	data []byte
 	room string
+	id   string
 }
 
 var upgrader = websocket.Upgrader{
@@ -121,7 +122,7 @@ func (s subscription) readPump() {
 			}
 			break
 		}
-		m := message{msg, s.room}
+		m := message{msg, s.room, c.user.id}
 		h.broadcast <- m
 	}
 }
@@ -151,6 +152,20 @@ func (s *subscription) writePump() {
 	}
 }
 
+func sendToRoom(room string, msg []byte) {
+	for conn := range h.rooms[room] {
+		conn.send <- msg
+	}
+}
+
+func sendToRoomExcept(room string, msg []byte, except *connection) {
+	for conn := range h.rooms[room] {
+		if conn != except {
+			conn.send <- msg
+		}
+	}
+}
+
 func (h *hub) run() {
 	for {
 		select {
@@ -161,6 +176,7 @@ func (h *hub) run() {
 				h.rooms[s.room] = connections
 			}
 			h.rooms[s.room][s.conn] = true
+			sendToRoomExcept(s.room, []byte(s.conn.user.name+" joined the room"), s.conn)
 		case s := <-h.unregister:
 			connections := h.rooms[s.room]
 			if connections != nil {
@@ -172,16 +188,19 @@ func (h *hub) run() {
 					}
 				}
 			}
+			sendToRoomExcept(s.room, []byte(s.conn.user.name+" left the room"), s.conn)
 		case m := <-h.broadcast:
 			connections := h.rooms[m.room]
 			for c := range connections {
-				select {
-				case c.send <- m.data:
-				default:
-					close(c.send)
-					delete(connections, c)
-					if len(connections) == 0 {
-						delete(h.rooms, m.room)
+				if c.user.id != m.id {
+					select {
+					case c.send <- m.data:
+					default:
+						close(c.send)
+						delete(connections, c)
+						if len(connections) == 0 {
+							delete(h.rooms, m.room)
+						}
 					}
 				}
 			}
