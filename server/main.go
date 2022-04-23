@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -65,7 +64,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	flag.Parse()
 	maxOpenFiles()
 
 	go h.Run()

@@ -22,22 +22,13 @@ const AppContextProvider = ({ children }: Props) => {
   const [room, setRoom] = React.useState<string>('');
 
   useEffect(() => {
-    if (room) {
-      console.log('connecting to room', room);
-      const test = new WebSocket(process.env.REACT_APP_SOCKET_URL || 'ws://localhost:8080/ws');
+    if (room && name) {
+      const test = new WebSocket(process.env.REACT_APP_SOCKET_URL || 'ws://localhost:8080/' + room + "?name=" + name);
       test.onopen = () => {
-        console.log('connected to room', room);
         setSocket(test);
-        console.log(test);
-      }
-      test.onmessage = (e) => {
-        console.log('message', e);
-      }
-      test.onclose = () => {
-        console.log('disconnected from room', room);
       }
     }
-  }, [room]);
+  }, [room, name]);
 
   return (
     <AppContext.Provider value={{ name, socket, room, setName, setRoom }}>
