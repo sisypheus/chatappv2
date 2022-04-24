@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -60,6 +61,11 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	sub := Subscription{conn, vars["room"]}
 	h.register <- sub
 	go sub.writePump()
+	formatted, err := json.Marshal(AdminMessage{string(user.name + " joined the room"), true})
+	if err != nil {
+		log.Println(err)
+	}
+	conn.write(websocket.TextMessage, formatted)
 	sub.readPump()
 }
 

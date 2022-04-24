@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"time"
 
@@ -18,6 +19,16 @@ type Message struct {
 	data []byte
 	room string
 	id   string
+}
+
+type ClientMessage struct {
+	Content string `json:"data"`
+	Sender  string `json:"sender"`
+}
+
+type AdminMessage struct {
+	Content string `json:"data"`
+	Admin   bool   `json:"admin"`
 }
 
 func (c *Connection) write(mt int, payload []byte) error {
@@ -73,9 +84,15 @@ func (s *Subscription) writePump() {
 }
 
 func sendToRoomExcept(room string, msg []byte, except *Connection) {
+	message := AdminMessage{string(msg), true}
+	payload, err := json.Marshal(message)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 	for conn := range h.rooms[room] {
 		if conn != except {
-			conn.send <- msg
+			conn.send <- payload
 		}
 	}
 }

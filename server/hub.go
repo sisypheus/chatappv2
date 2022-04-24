@@ -1,12 +1,16 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type Hub struct {
 	rooms      map[string]map[*Connection]bool
 	broadcast  chan Message
 	register   chan Subscription
 	unregister chan Subscription
 }
-
 
 func (h *Hub) Run() {
 	for {
@@ -32,11 +36,15 @@ func (h *Hub) Run() {
 			}
 			sendToRoomExcept(s.room, []byte(s.conn.user.name+" left the room"), s.conn)
 		case m := <-h.broadcast:
+			data, err := json.Marshal(ClientMessage{string(m.data), m.id})
+			if err != nil {
+				fmt.Println(err)
+			}
 			connections := h.rooms[m.room]
 			for c := range connections {
 				if c.user.id != m.id {
 					select {
-					case c.send <- m.data:
+					case c.send <- data:
 					default:
 						close(c.send)
 						delete(connections, c)
