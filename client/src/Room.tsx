@@ -61,6 +61,7 @@ const Room = () => {
   return (
     <div className='flex-1 bg-slate-50 h-full max-w-md py-12 px-2 m-auto w-full flex flex-col items-center justify-center'>
       <div className='flex items-center h-full justify-start flex-col w-full my-2'>
+        <p>{room}</p>
         <div ref={scrollableRef} className='w-full flex-col overflow-auto'>
           <div className='flex flex-col'>
             {messages.map((message, index) => {
