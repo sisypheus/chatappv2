@@ -36,7 +36,7 @@ func (h *Hub) Run() {
 			}
 			sendToRoomExcept(s.room, []byte(s.conn.user.name+" left the room"), s.conn)
 		case m := <-h.broadcast:
-			data, err := json.Marshal(ClientMessage{string(m.data), m.id})
+			data, err := json.Marshal(ClientMessage{string(m.data), m.id, m.name})
 			if err != nil {
 				fmt.Println(err)
 			}

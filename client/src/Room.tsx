@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAppContext } from './AppContext';
+import Message from './Message';
 
 const Room = () => {
   const { room, socket, setRoom, setName } = useAppContext();
@@ -35,7 +36,7 @@ const Room = () => {
       return
     scrollableRef.current.scrollTop = scrollableRef.current.scrollHeight;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length])
+  }, [messages])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -55,31 +56,15 @@ const Room = () => {
 
   return (
     <div className='h-full w-full bg-gray-100'>
-      <div className='flex-1 bg-slate-50 h-full border shadow-lg py-1 sm:max-w-md m-auto w-full flex flex-col items-center justify-center'>
-        <div className='flex items-center h-full justify-start flex-col w-full my-2'>
-          <p>{room}</p>
-          <div ref={scrollableRef} className='w-full flex-col overflow-auto px-2'>
+      <div className='flex-1 bg-slate-50 h-full border border-b-0 shadow-lg sm:max-w-md m-auto w-full flex flex-col items-center justify-center'>
+        <div className='flex items-center h-full justify-start flex-col flex-grow flex-shrink w-full'>
+          <div className='p-1 w-full flex items-center border border-x-0 shadow-sm justify-center'>
+            <p>{room}</p>
+          </div>
+          <div ref={scrollableRef} className='w-full basis-0 flex-grow flex-shrink flex-col overflow-auto px-2'>
             <div className='flex flex-col space-y-1'>
               {messages.map((message, index) => {
-                // TODO - make this a component
-                if (message.admin)
-                  return <div className='flex items-center justify-center' key={index}>
-                    <div className='px-4 py-2 bg-gray-200 rounded-md'>
-                      <p>{message.data}</p>
-                    </div>
-                  </div>
-                else if (message.has_sent)
-                  return <div className='flex w-full items-end justify-end' key={index}>
-                    <div className='px-4 py-2 items-end bg-blue-500 rounded-md'>
-                      <p className='text-gray-100'>{message.data}</p>
-                    </div>
-                  </div>
-                else
-                  return <div className='flex w-full items-start justify-start' key={index}>
-                    <div className='px-4 py-2 items-end bg-gray-300 rounded-md'>
-                      <p>{message.data}</p>
-                    </div>
-                  </div>
+                return <Message key={index} message={message} />
               })}
             </div>
           </div>

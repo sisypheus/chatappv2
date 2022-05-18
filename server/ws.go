@@ -19,11 +19,13 @@ type Message struct {
 	data []byte
 	room string
 	id   string
+	name string
 }
 
 type ClientMessage struct {
 	Content string `json:"data"`
 	Sender  string `json:"sender"`
+	Name    string `json:"name"`
 }
 
 type AdminMessage struct {
@@ -53,7 +55,7 @@ func (s Subscription) readPump() {
 			}
 			break
 		}
-		m := Message{msg, s.room, c.user.id}
+		m := Message{msg, s.room, c.user.id, c.user.name}
 		h.broadcast <- m
 	}
 }
