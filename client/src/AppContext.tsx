@@ -23,9 +23,9 @@ const AppContextProvider = ({ children }: Props) => {
 
   useEffect(() => {
     if (room && name) {
-      const test = new WebSocket(process.env.REACT_APP_SOCKET_URL || 'ws://localhost:8080/' + room + "?name=" + name);
-      test.onopen = () => {
-        setSocket(test);
+      const socket = new WebSocket((process.env.REACT_APP_SOCKET_URL || 'ws://localhost:8080/') + room + "?name=" + name);
+      socket.onopen = () => {
+        setSocket(socket);
       }
     }
   }, [room, name]);
